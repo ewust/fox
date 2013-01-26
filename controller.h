@@ -15,13 +15,16 @@ void controller_connect_cb(struct bufferevent *bev, short events,
 void controller_read_cb(struct bufferevent *bev, void *user_data);
 
 void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
-                           char *payload);
+                           void *payload);
+
+void controller_handle_error_msg(struct fox_state *state,
+                                 struct ofp_error_msg *err_msg);
 
 void controller_register_handler(struct fox_state *state, uint8_t type, 
                                 void (*func)(struct fox_state *state, 
-                                             struct ofp_header *ofhdr,
-                                             char *payload));
+                                             void *payload));
 
 void controller_send_hello(struct fox_state *state);
 
+void controller_send_echo_request(struct fox_state *state);
 #endif

@@ -13,6 +13,11 @@ void cleanup_state(struct fox_state *state)
     }
 }
 
+void echo_cb(struct fox_state *state, void *payload)
+{
+    LogInfo(state->name, "main got an echo callback!");
+}
+
 int main(char *argv[], int argc)
 {
     struct event_base *base;
@@ -31,6 +36,8 @@ int main(char *argv[], int argc)
     
     state->name = "test";
     state->base = event_base_new();
+
+    controller_register_handler(state, OFPT_ECHO_REPLY, echo_cb);
 
     if (controller_connect(state, "10.1.0.1", 6633)) {
         return -1;

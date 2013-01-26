@@ -14,8 +14,8 @@ struct fox_state {
 
     void (*controller_join_cb)(struct fox_state *state);
 
-    void (*msg_handler[256])(struct fox_state *state, struct ofp_header *ofhdr,
-                        char *payload);
+    void (*msg_handler[256])(struct fox_state *state,
+                             void *payload);
 };
 
 void cleanup_state(struct fox_state *state);

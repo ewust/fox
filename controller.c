@@ -99,19 +99,15 @@ void controller_read_cb(struct bufferevent *bev, void *user_data)
 
     LogTrace(state->name, "Received message type %d", ofhdr.type);
 
-    if (ntohs(ofhdr.length) > sizeof(ofhdr)) {
-        payload = malloc(ntohs(ofhdr.length) - sizeof(ofhdr));
-        if (payload == NULL) {
-            LogError(state->name, "Error: could not malloc %d bytes",
-                     ntohs(ofhdr.length) - sizeof(ofhdr));
-            return;
-        }
-
-        evbuffer_drain(buf, sizeof(ofhdr));
-        evbuffer_remove(buf, payload, ntohs(ofhdr.length) - sizeof(ofhdr));
-    } else {
-        evbuffer_drain(buf, sizeof(ofhdr));
+    payload = malloc(ntohs(ofhdr.length));
+    if (payload == NULL) {
+        LogError(state->name, "Error: could not malloc %d bytes",
+                 ntohs(ofhdr.length) - sizeof(ofhdr));
+        return;
     }
+
+    evbuffer_drain(buf, sizeof(ofhdr));
+    evbuffer_remove(buf, payload, ntohs(ofhdr.length) - sizeof(ofhdr));
 
     controller_handle_msg(state, &ofhdr, payload);
 
@@ -119,11 +115,12 @@ void controller_read_cb(struct bufferevent *bev, void *user_data)
 }
 
 void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
-                           char *payload)
+                           void *payload)
 {
     switch (ofhdr->type) {
     case OFPT_HELLO:
         LogTrace(state->name, "Received hello message");
+        controller_send_echo_request(state);
         break;
     case OFPT_ECHO_REQUEST:
         LogInfo(state->name, "Echo request");
@@ -131,6 +128,9 @@ void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
     case OFPT_ECHO_REPLY:
         LogInfo(state->name, "Echo reply");
         break;
+    case OFPT_ERROR:
+        controller_handle_error_msg(state, payload);
+        break; 
     default:
         LogInfo(state->name, "Unknown/unimplemented type %d", ofhdr->type);
         break;
@@ -138,17 +138,23 @@ void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
 
     /* Issue user callback if they want it */
     if (state->msg_handler[ofhdr->type] != NULL) {
-        state->msg_handler[ofhdr->type](state, ofhdr, payload);
+        state->msg_handler[ofhdr->type](state, payload);
     }
   
+}
+
+void controller_handle_error_msg(struct fox_state *state,
+                                 struct ofp_error_msg *err_msg)
+{
+    LogError(state->name, "Error type %d code %d", err_msg->type,
+             err_msg->code);
 }
 
 /* TODO: make this a list
 */
 void controller_register_handler(struct fox_state *state, uint8_t type, 
                                 void (*func)(struct fox_state *state, 
-                                             struct ofp_header *ofhdr,
-                                             char *payload))
+                                             void *payload))
 {
     state->msg_handler[type] = func;
 }
@@ -162,4 +168,15 @@ void controller_send_hello(struct fox_state *state)
     hello_msg.header.xid = htonl(0); 
 
     bufferevent_write(state->controller_bev, &hello_msg, sizeof(hello_msg)); 
+}
+
+void controller_send_echo_request(struct fox_state *state)
+{
+    struct ofp_header echo_req;
+    echo_req.version = OFP_VERSION;
+    echo_req.type = OFPT_ECHO_REQUEST;
+    echo_req.length = htons(sizeof(echo_req));
+    echo_req.xid = htonl(0);
+
+    bufferevent_write(state->controller_bev, &echo_req, sizeof(echo_req));
 }
