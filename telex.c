@@ -3,6 +3,10 @@
 #include <event2/bufferevent.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <errno.h>
+#include <assert.h>
 #include "fox.h"
 #include "controller.h"
 #include "telex.h"
@@ -42,6 +46,36 @@ void telex_read_cb(struct bufferevent *bev, void *ctx)
     }
 }
 
+void telex_error_cb(struct bufferevent *bev, short events, void *ctx)
+{
+    struct telex_state *state = ctx;
+    evutil_socket_t fd = bufferevent_getfd(bev);
+    struct sockaddr_in sin;
+    socklen_t sin_size = sizeof(sin);
+    char src_ip[INET_ADDRSTRLEN];
+
+    assert(state != NULL);
+
+    if (getpeername(fd, (struct sockaddr *)&sin, &sin_size) != 0) {
+        LogError(state->name, "(%d) Could not getsockname for fd %d",
+                 errno, fd);
+        perror("   ");
+        return;
+    }
+
+    inet_ntop(sin.sin_family, &sin.sin_addr, src_ip, INET_ADDRSTRLEN);
+
+    if (events & BEV_EVENT_ERROR) {
+        LogError(state->name, "Error from bufferevent (%s:%d):",
+                 src_ip, ntohs(sin.sin_port));
+        perror("    ");
+    }
+    if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR)) {
+        LogDebug(state->name, "%s:%d disconnected", src_ip,
+                ntohs(sin.sin_port));
+    }
+}
+
 void telex_accept_cb(struct evconnlistener *listener,
                      evutil_socket_t fd, struct sockaddr *address,
                      int socklen, void *ctx)
@@ -53,10 +87,10 @@ void telex_accept_cb(struct evconnlistener *listener,
     struct sockaddr_in *sin = (struct sockaddr_in *)address;
     char src_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &sin->sin_addr.s_addr, src_ip, INET_ADDRSTRLEN);
-    LogDebug(state->name, "Received connection: %s:%d",
+    LogDebug(state->name, "%s:%d connected",
              src_ip, ntohs(sin->sin_port));
-    // TODO: add error event CB
-    bufferevent_setcb(bev, telex_read_cb, NULL, NULL, state);
+
+    bufferevent_setcb(bev, telex_read_cb, NULL, telex_error_cb, state);
     bufferevent_enable(bev, EV_READ);
 }
 
