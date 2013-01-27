@@ -22,11 +22,11 @@ struct telex_state {
 
 struct telex_mod_flow 
 {
+  uint8_t     action;  
   uint32_t    src_ip;
   uint32_t    dst_ip;
   uint16_t    src_port;
   uint16_t    dst_port;
-  uint8_t     action;  
 } __attribute__((__packed__));
 
 #endif
