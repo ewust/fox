@@ -216,8 +216,8 @@ void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
 void controller_handle_error_msg(struct fox_state *state,
                                  struct ofp_error_msg *err_msg)
 {
-    LogError(state->name, "Error type %d code %d", err_msg->type,
-             err_msg->code);
+    LogError(state->name, "Error type %d code %d", ntohs(err_msg->type),
+             ntohs(err_msg->code));
 }
 
 int get_port_speed(uint32_t port_feature)
@@ -282,6 +282,7 @@ void controller_send_hdr(struct fox_state *state, void *payload, size_t len)
     hdr->length = htons(len);
     hdr->xid = htonl(0);
 
+    // TODO: check bufferevent_write return value
     bufferevent_write(state->controller_bev, payload, len);
 }
 
