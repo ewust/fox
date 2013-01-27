@@ -19,6 +19,8 @@ struct fox_state {
 
     void (*msg_handler[256])(struct fox_state *state,
                              void *payload);
+
+    void                *user_ptr;
 };
 
 void cleanup_state(struct fox_state *state);
