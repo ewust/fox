@@ -94,6 +94,15 @@ void telex_accept_cb(struct evconnlistener *listener,
     bufferevent_enable(bev, EV_READ);
 }
 
+void telex_accept_error_cb(struct evconnlistener *listener, void *ctx)
+{
+    struct event_base *base = evconnlistener_get_base(listener);
+    int err = EVUTIL_SOCKET_ERROR();
+
+    LogError("telex", "Accept error %d (%s)", err,
+             evutil_socket_error_to_string(err));
+}
+
 
 int telex_init_listener(struct telex_state *state)
 {
@@ -112,8 +121,8 @@ int telex_init_listener(struct telex_state *state)
         LogError("telex", "Error binding");
         return -1;
     }
-    // TODO: accept err cb
-    //evconnlistener_set_error_cb(state->listener, accept_error_cb);
+
+    evconnlistener_set_error_cb(state->listener, telex_accept_error_cb);
 
     return 0;
 }
