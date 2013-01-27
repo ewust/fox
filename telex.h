@@ -20,6 +20,8 @@ struct telex_state {
 #define TELEX_MOD_BLOCK_BIDIRECTIONAL 0x03
 #define TELEX_MOD_UNBLOCK_BIDIRECTIONAL 0x04
 
+#define TELEX_IDLE_FLOW_TIMEOUT         15*60
+
 struct telex_mod_flow 
 {
   uint8_t     action;  
