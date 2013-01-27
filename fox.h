@@ -11,6 +11,9 @@ struct fox_state {
     char                *name;
     struct event_base   *base;
     struct bufferevent  *controller_bev;
+    struct event        *echo_timer;
+    struct event        *echo_timeout;
+    uint32_t            echo_period_ms;
 
     void (*controller_join_cb)(struct fox_state *state);
 

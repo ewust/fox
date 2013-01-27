@@ -33,9 +33,11 @@ int main(char *argv[], int argc)
     }
     memset(state, 0, sizeof(*state));
 
-    
+    state->echo_period_ms = 30*1000; 
     state->name = "test";
     state->base = event_base_new();
+
+    controller_init_echo(state);
 
     controller_register_handler(state, OFPT_ECHO_REPLY, echo_cb);
 
