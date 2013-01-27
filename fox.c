@@ -28,9 +28,10 @@ int main(char *argv[], int argc)
 
     base = event_base_new();
 
-    state = controller_new(base, "10.1.0.1", 6633, 30*1000);
+    //state = controller_new(base, "10.1.0.1", 6633, 30*1000);
+    telex_init(base);
    
-    event_base_dispatch(state->base);
+    event_base_dispatch(base);
     
 
     return 0;
