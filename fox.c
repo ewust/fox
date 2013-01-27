@@ -26,25 +26,10 @@ int main(char *argv[], int argc)
     LogOutputStream(stdout);
     LogOutputLevel(LOG_TRACE);
 
-    state = malloc(sizeof(*state));
-    if (state == NULL) {
-        LogError("main", "Could not malloc state");
-        return -1;
-    }
-    memset(state, 0, sizeof(*state));
+    base = event_base_new();
 
-    state->echo_period_ms = 30*1000; 
-    state->name = "test";
-    state->base = event_base_new();
-
-    controller_init_echo(state);
-
-    controller_register_handler(state, OFPT_ECHO_REPLY, echo_cb);
-
-    if (controller_connect(state, "10.1.0.1", 6633)) {
-        return -1;
-    }
-    
+    state = controller_new(base, "10.1.0.1", 6633, 30*1000);
+   
     event_base_dispatch(state->base);
     
 

@@ -7,6 +7,35 @@
 #include "logger.h"
 #include "openflow.h"
 
+
+/* only supports connecting to a controller.
+* TODO: support listen and SSL
+*/
+struct fox_state *controller_new(struct event_base *base, char *ip,
+                                 uint16_t port, uint32_t echo_period_ms)
+{
+    struct fox_state *state;
+
+    state = malloc(sizeof(*state));
+    if (state == NULL) {
+        LogError("controller", "Could not malloc state");
+        return NULL;
+    }
+    memset(state, 0, sizeof(*state));
+
+    state->echo_period_ms = echo_period_ms;
+    state->name = ip;
+    state->base = base;
+
+    controller_init_echo(state);
+
+    if (controller_connect(state, ip, port)) {
+        return NULL;
+    }
+
+    return state;
+}
+
 void controller_echo_timeout(evutil_socket_t fd, short what, void *arg)
 {
     struct fox_state *state = arg;

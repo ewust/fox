@@ -5,6 +5,8 @@
 #include <event2/bufferevent.h>
 #include "fox.h"
 
+struct fox_state *controller_new(struct event_base *base, char *ip,
+                                 uint16_t port, uint32_t echo_period_ms);
 
 void controller_init_echo(struct fox_state *state);
 
