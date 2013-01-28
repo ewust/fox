@@ -211,8 +211,16 @@ void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
     if (state->msg_handler[ofhdr->type] != NULL) {
         struct handler_list *handler = state->msg_handler[ofhdr->type];
         while (handler) {
+            /* Grab the next handler before we call this current one's
+             * callback. Otherwise, if the current one unregisters itself,
+             * we will dereference free'd memory
+            */
+            struct handler_list *next_handler;
+            next_handler = handler->next;
+
             handler->func(state, payload);
-            handler = handler->next;
+
+            handler = next_handler;
         }
     } 
 }
