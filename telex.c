@@ -227,7 +227,8 @@ int telex_init(struct event_base *base)
     state->base = base;
     state->name = "Telex";
 
-    state->controllers[0] = controller_new(base, "10.1.0.1", 6633, 10*1000);
+    state->controllers[0] = controller_new(base, "10.1.0.5", 6633, 10*1000,
+                                           0);
     if (state->controllers[0] == NULL) {
         return -1;
     }
