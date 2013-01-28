@@ -24,7 +24,7 @@ int main(char *argv[], int argc)
     struct fox_state *state;
 
     LogOutputStream(stdout);
-    LogOutputLevel(LOG_TRACE);
+    LogOutputLevel(LOG_DEBUG);
 
     base = event_base_new();
 
