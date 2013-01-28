@@ -7,6 +7,14 @@
 #include <string.h>
 #include "openflow.h"
 
+struct fox_state;
+
+struct handler_list {
+    struct handler_list *next;
+    void (*func)(struct fox_state *state,
+                 void *payload);
+};
+
 struct fox_state {
     char                *name;
     struct event_base   *base;
@@ -17,8 +25,7 @@ struct fox_state {
 
     void (*controller_join_cb)(struct fox_state *state);
 
-    void (*msg_handler[256])(struct fox_state *state,
-                             void *payload);
+    struct handler_list *msg_handler[256];
 
     void                *user_ptr;
 };

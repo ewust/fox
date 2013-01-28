@@ -209,7 +209,11 @@ void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
 
     /* Issue user callback if they want it */
     if (state->msg_handler[ofhdr->type] != NULL) {
-        state->msg_handler[ofhdr->type](state, payload);
+        struct handler_list *handler = state->msg_handler[ofhdr->type];
+        while (handler) {
+            handler->func(state, payload);
+            handler = handler->next;
+        }
     } 
 }
 
@@ -272,7 +276,54 @@ void controller_register_handler(struct fox_state *state, uint8_t type,
                                 void (*func)(struct fox_state *state, 
                                              void *payload))
 {
-    state->msg_handler[type] = func;
+    struct handler_list *last_handler;
+    struct handler_list *new_handler;
+
+    new_handler = malloc(sizeof(*new_handler));
+    if (new_handler == NULL) {
+        LogError(state->name, "Could not malloc new controller handler");
+        return;
+    }
+    new_handler->next = NULL;
+    new_handler->func = func;
+
+    last_handler = state->msg_handler[type];
+
+    if (last_handler != NULL) {
+
+        while (last_handler->next != NULL) {
+            last_handler = last_handler->next;
+        }
+        last_handler->next = new_handler;
+
+    } else {
+        state->msg_handler[type] = new_handler;
+    }
+}
+
+void controller_unregister_handler(struct fox_state *state, uint8_t type,
+                                   void (*func)(struct fox_state *state,
+                                                void *payload))
+{
+    struct handler_list *handler;
+
+    handler = state->msg_handler[type];
+    if (handler && handler->func == func) {
+        state->msg_handler[type] = handler->next;
+        free(handler);
+        return;
+    }
+
+    while (handler && handler->next) {
+        if (handler->next->func == func) {
+            struct handler_list *tmp = handler->next;
+            handler->next = handler->next->next;
+            free(tmp);
+            return;
+        }
+    }
+    LogWarn(state->name, "Tried to remove %p from handler[%d]; not found",
+            func, type);
 }
 
 void controller_send_hdr(struct fox_state *state, void *payload, size_t len)
