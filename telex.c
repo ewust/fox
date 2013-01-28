@@ -30,7 +30,7 @@ void telex_generate_mod_flow(struct telex_state *state, uint32_t src_ip,
                                    ~OFPFW_TP_SRC & ~OFPFW_TP_DST &
                                    ~OFPFW_NW_PROTO & ~OFPFW_DL_TYPE);
     ofmod->match.in_port = htons(0);
-    ofmod->match.dl_type = ETH_P_IP; 
+    ofmod->match.dl_type = htons(ETH_P_IP); 
     ofmod->match.nw_src = src_ip;
     ofmod->match.nw_dst = dst_ip;
     ofmod->match.nw_proto = IPPROTO_TCP;
@@ -188,6 +188,29 @@ int telex_init_listener(struct telex_state *state)
     return 0;
 }
 
+void telex_flow_removed_cb(struct fox_state *state, void *payload)
+{
+    struct ofp_flow_removed *removed = payload;
+    char src_ip[INET_ADDRSTRLEN];
+    char dst_ip[INET_ADDRSTRLEN];
+    char *reason;
+
+    inet_ntop(AF_INET, &removed->match.nw_src, src_ip, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &removed->match.nw_dst, dst_ip, INET_ADDRSTRLEN);
+    
+    switch (removed->reason) {
+    case OFPRR_IDLE_TIMEOUT:    reason = "idle timeout"; break;
+    case OFPRR_HARD_TIMEOUT:    reason = "hard timeout"; break;
+    case OFPRR_DELETE:          reason = "delete";       break;
+    default:                    reason = "unknown";
+    }
+
+    LogInfo(state->name, "Flow removed: %s:%d -> %s:%d reason: %s (%d)", 
+            src_ip, ntohs(removed->match.tp_src),
+            dst_ip, ntohs(removed->match.tp_dst), reason, removed->reason);
+}
+
+
 /* TODO: take configuration */
 int telex_init(struct event_base *base)
 { 
@@ -204,13 +227,14 @@ int telex_init(struct event_base *base)
     state->base = base;
     state->name = "Telex";
 
-    state->controllers[0] = controller_new(base, "10.1.0.1", 6633, 30*1000);
+    state->controllers[0] = controller_new(base, "10.1.0.1", 6633, 10*1000);
     if (state->controllers[0] == NULL) {
         return -1;
     }
     state->controllers[0]->user_ptr = state;
-    // TODO: register handlers for some openflow callbacks
-    //controller_register_handler(state, OFPT_ECHO_REPLY, echo_cb);
+
+    controller_register_handler(state->controllers[0], OFPT_FLOW_REMOVED,
+                                telex_flow_removed_cb);
 
     if (telex_init_listener(state)) {
         return -1;
