@@ -433,7 +433,7 @@ void controller_unregister_handler(struct fox_state *state, uint8_t type,
             func, type);
 }
 
-void controller_send_hdr(struct fox_state *state, void *payload, size_t len)
+int controller_send_hdr(struct fox_state *state, void *payload, size_t len)
 {
     struct ofp_header *hdr = payload;
     hdr->version = OFP_VERSION;
@@ -441,6 +441,8 @@ void controller_send_hdr(struct fox_state *state, void *payload, size_t len)
     hdr->xid = htonl(0);
 
     // TODO: check bufferevent_write return value
+    // TODO: buffer data even if controller_bev is null...
+    //          (e.g. before switch has connected)
     bufferevent_write(state->controller_bev, payload, len);
 }
 
