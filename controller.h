@@ -6,9 +6,13 @@
 #include "fox.h"
 
 struct fox_state *controller_new(struct event_base *base, char *ip,
-                                 uint16_t port, uint32_t echo_period_ms);
+                                 uint16_t port, uint32_t echo_period_ms,
+                                 int connect);
 
 void controller_init_echo(struct fox_state *state);
+
+int controller_listen(struct fox_state *state, char *listen_ip,
+                      uint16_t listen_port);
 
 int controller_connect(struct fox_state *state, char *switch_ip, 
                        uint16_t switch_port);

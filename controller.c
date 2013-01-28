@@ -1,7 +1,10 @@
 #include <event2/event.h>
 #include <event2/bufferevent.h>
+#include <event2/listener.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <stdio.h>
 #include "fox.h"
 #include "controller.h"
 #include "logger.h"
@@ -12,7 +15,8 @@
 * TODO: support listen and SSL
 */
 struct fox_state *controller_new(struct event_base *base, char *ip,
-                                 uint16_t port, uint32_t echo_period_ms)
+                                 uint16_t port, uint32_t echo_period_ms,
+                                 int connect)
 {
     struct fox_state *state;
 
@@ -29,8 +33,14 @@ struct fox_state *controller_new(struct event_base *base, char *ip,
 
     controller_init_echo(state);
 
-    if (controller_connect(state, ip, port)) {
-        return NULL;
+    if (connect) {
+        if (controller_connect(state, ip, port)) {
+            return NULL;
+        }
+    } else {
+        if (controller_listen(state, ip, port)) {
+            return NULL;
+        }
     }
 
     return state;
@@ -48,6 +58,12 @@ void controller_echo_cb(evutil_socket_t fd, short what, void *arg)
 {
     struct fox_state *state = arg;
     struct timeval tv = {1, 0};
+
+    /* Check if we are connected */
+    if (state->controller_bev == NULL) {
+        evtimer_add(state->echo_timer, &tv);
+        return;
+    }
 
     LogDebug(state->name, "sending echo request");
 
@@ -71,6 +87,88 @@ void controller_init_echo(struct fox_state *state)
     evtimer_add(state->echo_timer, &tv);
 }
 
+void controller_error_cb(struct bufferevent *bev, short events, void *ctx)
+{
+    struct fox_state *state = ctx;
+    evutil_socket_t fd = bufferevent_getfd(bev);
+    struct sockaddr_in sin;
+    socklen_t sin_size = sizeof(sin);
+    char src_ip[INET_ADDRSTRLEN];
+
+    assert(state != NULL);
+
+    if (getpeername(fd, (struct sockaddr *)&sin, &sin_size) != 0) {
+        LogError(state->name, "(%d) Could not getsockname for fd %d",
+                 errno, fd);
+        perror("   ");
+        return;
+    }
+
+    inet_ntop(sin.sin_family, &sin.sin_addr, src_ip, INET_ADDRSTRLEN);
+
+    if (events & BEV_EVENT_ERROR) {
+        LogError(state->name, "Error from bufferevent (%s:%d):",
+                 src_ip, ntohs(sin.sin_port));
+        perror("    ");
+    }
+    if (events & (BEV_EVENT_EOF | BEV_EVENT_ERROR)) {
+        LogDebug(state->name, "%s:%d disconnected", src_ip,
+                ntohs(sin.sin_port));
+    }
+}
+
+void controller_accept_cb(struct evconnlistener *listener,
+                          evutil_socket_t fd, struct sockaddr *address,
+                          int socklen, void *ctx)
+{
+    struct fox_state *state = ctx;
+
+    state->controller_bev = bufferevent_socket_new(
+                state->base, fd, BEV_OPT_CLOSE_ON_FREE);
+    struct sockaddr_in *sin = (struct sockaddr_in *)address;
+    char src_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &sin->sin_addr.s_addr, src_ip, INET_ADDRSTRLEN);
+    LogDebug(state->name, "%s:%d connected",
+             src_ip, ntohs(sin->sin_port));
+
+    bufferevent_setcb(state->controller_bev, controller_read_cb, NULL,
+                      controller_error_cb, state);
+    bufferevent_enable(state->controller_bev, EV_READ);
+
+    controller_send_hello(state);
+
+    // Or is a join only after you get data/stats from it?
+    if (state->controller_join_cb) {
+        state->controller_join_cb(state);
+    }
+}
+
+int controller_listen(struct fox_state *state, char *listen_ip,
+                      uint16_t listen_port)
+{
+    struct sockaddr_in sin;
+    struct evconnlistener *listener;
+
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = inet_addr(listen_ip);
+    sin.sin_port = htons(listen_port);
+
+    listener = evconnlistener_new_bind(state->base, 
+                            controller_accept_cb, state,
+                            LEV_OPT_CLOSE_ON_FREE|LEV_OPT_REUSEABLE, -1,
+                            (struct sockaddr*)&sin, sizeof(sin));
+    if (!listener) {
+        LogError(state->name, "Error binding");
+        perror("bind error");
+        return -1;
+    }
+
+    //evconnlistener_set_error_cb(listener, controller_accept_error_cb);
+
+    return 0;
+}
+
 /*
 * Create a bufferevent for connecting to a controller
 */
@@ -91,7 +189,8 @@ int controller_connect(struct fox_state *state, char *switch_ip,
     sin.sin_addr.s_addr = inet_addr(switch_ip);
     sin.sin_port = htons(switch_port);
 
-    bufferevent_setcb(state->controller_bev, controller_read_cb, NULL, controller_connect_cb, state);
+    bufferevent_setcb(state->controller_bev, controller_read_cb, NULL,
+                      controller_connect_cb, state);
 
     if (bufferevent_socket_connect(state->controller_bev,
         (struct sockaddr *)&sin, sizeof(sin)) < 0) {
