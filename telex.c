@@ -227,15 +227,21 @@ int telex_init(struct event_base *base)
     state->base = base;
     state->name = "Telex";
 
-    state->controllers[0] = controller_new(base, "10.1.0.5", 6633, 10*1000,
-                                           0);
-    if (state->controllers[0] == NULL) {
+    state->controllers[0] = controller_new(base, 
+                                    "10.1.0.1", 6633, 90*1000, 1);
+    state->controllers[1] = controller_new(base, 
+                                    "10.1.0.5", 6633, 90*1000, 0);
+    if (state->controllers[0] == NULL || state->controllers[1] == NULL) {
         return -1;
     }
     state->controllers[0]->user_ptr = state;
+    state->controllers[1]->user_ptr = state;
 
-    controller_register_handler(state->controllers[0], OFPT_FLOW_REMOVED,
+    /* Openflow only sends flow removed by connecting to us, nevermind that
+     * we already have a connection open with them. */
+    controller_register_handler(state->controllers[1], OFPT_FLOW_REMOVED,
                                 telex_flow_removed_cb);
+
 
     if (telex_init_listener(state)) {
         return -1;
