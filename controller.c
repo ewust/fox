@@ -27,17 +27,20 @@ struct fox_state *controller_new(struct event_base *base, char *ip,
     }
     memset(state, 0, sizeof(*state));
 
-    state->echo_period_ms = echo_period_ms;
     state->name = ip;
     state->base = base;
 
-    controller_init_echo(state);
 
     if (connect) {
+
+        state->echo_period_ms = echo_period_ms;
+        controller_init_echo(state);
+
         if (controller_connect(state, ip, port)) {
             return NULL;
         }
     } else {
+        state->echo_period_ms = 0;
         if (controller_listen(state, ip, port)) {
             return NULL;
         }
@@ -288,6 +291,7 @@ void controller_handle_msg(struct fox_state *state, struct ofp_header *ofhdr,
         break;
     case OFPT_ECHO_REQUEST:
         LogDebug(state->name, "Echo request");
+        controller_send_echo_reply(state, ofhdr->xid);
         break;
     case OFPT_ECHO_REPLY:
         LogDebug(state->name, "Echo reply");
@@ -438,7 +442,6 @@ int controller_send_hdr(struct fox_state *state, void *payload, size_t len)
     struct ofp_header *hdr = payload;
     hdr->version = OFP_VERSION;
     hdr->length = htons(len);
-    hdr->xid = htonl(0);
 
     // TODO: check bufferevent_write return value
     // TODO: buffer data even if controller_bev is null...
@@ -464,6 +467,15 @@ void controller_send_echo_request(struct fox_state *state)
     controller_send_hdr(state, &echo_req, sizeof(echo_req));
 }
 
+void controller_send_echo_reply(struct fox_state *state, uint32_t xid)
+{
+    struct ofp_header echo_reply;
+    echo_reply.type = OFPT_ECHO_REPLY;
+    echo_reply.xid = xid;
+
+    controller_send_hdr(state, &echo_reply, sizeof(echo_reply));
+}
+
 void controller_send_features_request(struct fox_state *state)
 {
     struct ofp_header feature_req;
@@ -476,6 +488,10 @@ void controller_send_features_request(struct fox_state *state)
 void controller_handle_echo_reply(struct fox_state *state)
 {
     struct timeval tv;
+
+    if (state->echo_period_ms == 0) {
+        return;
+    }
 
     LogDebug(state->name, "Got echo reply, ms: %d", state->echo_period_ms);
 
