@@ -443,7 +443,9 @@ int controller_send_hdr(struct fox_state *state, void *payload, size_t len)
     // TODO: check bufferevent_write return value
     // TODO: buffer data even if controller_bev is null...
     //          (e.g. before switch has connected)
-    bufferevent_write(state->controller_bev, payload, len);
+    if (state->controller_bev != NULL) {
+        bufferevent_write(state->controller_bev, payload, len);
+    }
 }
 
 void controller_send_hello(struct fox_state *state)
