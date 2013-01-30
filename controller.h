@@ -39,6 +39,8 @@ void controller_send_hello(struct fox_state *state);
 
 void controller_send_echo_request(struct fox_state *state);
 
+void controller_send_echo_reply(struct fox_state *state, uint32_t xid);
+
 void controller_send_features_request(struct fox_state *state);
 
 void controller_handle_echo_reply(struct fox_state *state);
