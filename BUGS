@@ -1,0 +1,11 @@
+Openflow bug (HP Procurve)
+---
+
+Does not send flow removed command to correct controller.
+If you connect to the Openflow switch over TCP and insert a flow with an
+idle timeout, the switch will attempt to connect back to you (if both
+passive an active controller types are configured) to send the flow removed
+command. If the switch has previously timed out in connecting back in this
+manner, it will not send the flow removed command even once it connects.
+
+
